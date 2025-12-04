@@ -32,11 +32,8 @@ const userSchema = new mongoose.Schema({
     type: String,
     maxlength: [200, "Bio cannot be more than 200 characters"],
   },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+
+}, { timestamps: true});
 
 // Hash password before saving
 userSchema.pre("save", async function (next) {

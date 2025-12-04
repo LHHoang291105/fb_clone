@@ -83,4 +83,8 @@ router.get("/:postId", authMW, async (req, res) => {
   }
 });
 
+router.put("/:postId", authMW, async (req, res) => {
+  
+})
+
 module.exports = router;
