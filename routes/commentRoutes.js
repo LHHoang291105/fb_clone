@@ -69,12 +69,15 @@ router.get("/:postId", authMW, async (req, res) => {
       });
     }
 
-    const comments = await Comment.find({ post: postId }).populate("author", "name email");
+    const comments = await Comment.find({ post: postId }).populate(
+      "author",
+      "name email"
+    );
 
     return res.status(200).json({
       success: true,
-      comments
-    })
+      comments,
+    });
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -83,8 +86,113 @@ router.get("/:postId", authMW, async (req, res) => {
   }
 });
 
-router.put("/:postId", authMW, async (req, res) => {
-  
-})
+router.put("/:commentId", authMW, async (req, res) => {
+  //Kiểm tra bài post đang bình luận
+  //kiểm tra xem có comment cha ko
+  //kiểm tra content nhập chưa
+
+  // 1.content
+  // 2.postId
+  // 4.commentId
+  // 3.author
+
+  try {
+    const { content } = req.body;
+    const commentId = req.params.commentId;
+    const userId = req.user.userId;
+
+    if (!content) {
+      return res.status(400).status({
+        success: false,
+        message: "Vui lòng nhập content bình luận",
+      });
+    }
+
+    const updatedComment = await Comment.findOne({
+      _id: commentId,
+      author: userId,
+    });
+
+    if (!updatedComment) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tồn tại comment",
+      });
+    }
+
+    updatedComment.content = content;
+    await updatedComment.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Sửa comment thành công",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: `Lỗi khi sửa comment: ${error.message}`,
+    });
+  }
+});
+
+router.delete("/:commentId", authMW, async (req, res) => {
+  try {
+    const commentId = req.params.commentId;
+    const userId = req.user.userId;
+
+    const comment = await Comment.findOne({
+      _id: commentId,
+      author: userId,
+    });
+
+    if (!comment) {
+      return res.status(404).json({
+        success: false,
+        message: "Binh luan ko ton tai",
+      });
+    }
+
+    // cập nhật lại số comment trên bản ghi Post
+
+    // Hàm đệ quy
+    let count = 1;
+    async function deleteReplies   (parentId)  {
+      const childrenComments = await Comment.find({ parentComment: parentId})
+
+      const childrenCommentsLength = childrenComments.length
+      count += childrenCommentsLength
+
+      for (const children of childrenComments) {
+        await deleteReplies(children.parentComment)
+        await Comment.deleteOne({
+          _id: children._id
+        });
+        // count++;
+      }
+    }
+
+    deleteReplies(commentId)
+
+    await Comment.deleteOne({
+      _id: commentId,
+    })
+
+    await Post.findByIdAndUpdate(comment.post,
+      {
+        $inc:{
+          commentCount: -count
+        }
+      }
+    );
+
+    res.status(200).json({ success: true, message: "Đã xóa thành công comment"});
+
+  } catch (error) {
+    return res.json({
+      success: true,
+      message: `Lỗi khi xóa comment: ${error.message}`,
+    });
+  }
+});
 
 module.exports = router;
