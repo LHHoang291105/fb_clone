@@ -156,43 +156,84 @@ router.delete("/:commentId", authMW, async (req, res) => {
 
     // Hàm đệ quy
     let count = 1;
-    async function deleteReplies   (parentId)  {
-      const childrenComments = await Comment.find({ parentComment: parentId})
+    async function deleteReplies(parentId) {
+      const childrenComments = await Comment.find({ parentComment: parentId });
 
-      const childrenCommentsLength = childrenComments.length
-      count += childrenCommentsLength
+      const childrenCommentsLength = childrenComments.length;
+      count += childrenCommentsLength;
 
       for (const children of childrenComments) {
-        await deleteReplies(children.parentComment)
+        await deleteReplies(children.parentComment);
         await Comment.deleteOne({
-          _id: children._id
+          _id: children._id,
         });
         // count++;
       }
     }
 
-    deleteReplies(commentId)
+    deleteReplies(commentId);
 
     await Comment.deleteOne({
       _id: commentId,
-    })
+    });
 
-    await Post.findByIdAndUpdate(comment.post,
-      {
-        $inc:{
-          commentCount: -count
-        }
-      }
-    );
+    await Post.findByIdAndUpdate(comment.post, {
+      $inc: {
+        commentCount: -count,
+      },
+    });
 
-    res.status(200).json({ success: true, message: "Đã xóa thành công comment"});
-
+    res
+      .status(200)
+      .json({ success: true, message: "Đã xóa thành công comment" });
   } catch (error) {
     return res.json({
       success: true,
       message: `Lỗi khi xóa comment: ${error.message}`,
     });
   }
+});
+
+router.get("/:postId", authMW, async (req, res) => {
+  try {
+    const postId = req.params.postId;
+    const comments = await Comment.find({ post: postId }).populate(
+      "author",
+      "name avatar"
+    );
+
+    // Hàm đệ quy
+    function buildCommentsTree(allComments, parentComment) {
+      const result = [];
+
+      allComments
+        .filter((item) => {
+          const parentId = item.parentComment
+            ? item.parentComment.toString()
+            : null;
+
+          return parentId === parentComment;
+        })
+        .forEach((comment) => {
+          const childrenComments = buildCommentsTree(
+            allComments,
+            comment._id.toString()
+          );
+          comment.comments = childrenComments;
+          result.push(comment);
+        });
+
+      return result;
+    }
+
+    // Chạy hàm đệ quy
+    const commentData = buildCommentsTree(comments, null);
+
+    return res.json({
+      success: true,
+      comments: commentData,
+    });
+  } catch {}
 });
 
 module.exports = router;
